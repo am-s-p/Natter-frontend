@@ -4,7 +4,7 @@ let socket = null;
 
 export const connectSocket = (token) => {
   if (!socket && token) {
-    socket = io("http://localhost:5005", {
+    socket = io("https://natter-backend-0p2e.onrender.com/api", {
       auth: { token },
     });
   }

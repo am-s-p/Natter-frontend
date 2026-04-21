@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://localhost:5005/api",
+  baseURL: "https://natter-backend-0p2e.onrender.com/api",
 });
 
 export default API;
