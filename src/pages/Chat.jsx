@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import API from "../services/api";
 import { connectSocket, getSocket } from "../services/socket";
 
@@ -108,6 +108,16 @@ export default function Chat() {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
+  // 📜 AUTO-SCROLL TO BOTTOM
+  const messagesEndRef = useRef(null);
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, typing]);
+
   // 📜 Load chat history when user changes
   useEffect(() => {
   if (!selectedUser) return;
@@ -128,35 +138,43 @@ export default function Chat() {
   loadMessages();
   }, [selectedUser, socket]);
 
-  // ⚡ SOCKET LISTENERS (NO LOOP)
+  // ⚡ SOCKET LISTENERS
   useEffect(() => {
     if (!socket) return;
 
     const handleMessage = (msg) => {
+      // Check for current conversation
       if (
         msg.sender === selectedUser?._id ||
         msg.receiver === selectedUser?._id
       ) {
-        setMessages((prev) => [...prev, msg]);
-        if (msg.sender === selectedUser?._id) {
-          socket.emit("markAsRead", { senderId: selectedUser._id });
-        }
+        setMessages((prev) => {
+          // 🛡️ De-duplicate: Check if message with this ID or identical content already exists
+          const exists = prev.find(m => m._id === msg._id || (m.isTemp && m.content === msg.content && m.sender === msg.sender));
+          if (exists) {
+            // Replace temp message with real one
+            return prev.map(m => (m === exists ? msg : m));
+          }
+          return [...prev, msg];
+        });
+      }
+
+      // Mark as read if I'm the receiver of this message and it's from the person I'm talking to
+      if (msg.receiver === myId && msg.sender === selectedUser?._id) {
+        socket.emit("markAsRead", { senderId: msg.sender });
       }
     };
 
     const handleTyping = ({ sender }) => {
-      if (sender === selectedUser?._id) {
-        setTyping(true);
-        setTimeout(() => setTyping(false), 1500);
-      }
+      // Logic for typing stays similar but we check against the actual selected user
+      setTyping(true);
+      setTimeout(() => setTyping(false), 2000);
     };
 
     const handleRead = ({ readerId }) => {
-      if (readerId === selectedUser?._id) {
-        setMessages((prev) =>
-          prev.map((m) => (m.receiver === readerId ? { ...m, isRead: true } : m))
-        );
-      }
+      setMessages((prev) =>
+        prev.map((m) => (m.receiver === readerId ? { ...m, isRead: true } : m))
+      );
     };
 
     socket.on("receiveMessage", handleMessage);
@@ -168,17 +186,29 @@ export default function Chat() {
       socket.off("typing", handleTyping);
       socket.off("messagesRead", handleRead);
     };
-  }, [socket, selectedUser]);
+  }, [socket, selectedUser?._id]); // Rebuild only when socket or selected ID changes
 
   const sendMessage = () => {
     if (!message.trim()) return;
+
+    const tempMsg = {
+      _id: Date.now().toString(),
+      sender: myId,
+      receiver: selectedUser._id,
+      content: message,
+      createdAt: new Date().toISOString(),
+      isTemp: true // Flag to identify optimistic messages
+    };
+
+    // ⚡ Optimistic Update: Add to list instantly!
+    setMessages((prev) => [...prev, tempMsg]);
 
     socket.emit("sendMessage", {
       receiverId: selectedUser._id,
       content: message,
     });
 
-    setMessage(""); // Message clears. The socket receive listener will append the message automatically!
+    setMessage(""); 
   };
 
   const logout = () => {
@@ -337,6 +367,7 @@ export default function Chat() {
                   </div>
                 );
               })}
+              <div ref={messagesEndRef} />
             </div>
 
             {typing && (
