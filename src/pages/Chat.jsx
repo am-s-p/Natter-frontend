@@ -239,11 +239,11 @@ export default function Chat() {
                     {m.attachment && (
                       <div className="attachment-preview">
                         {m.attachment.fileType.startsWith("image/") ? (
-                          <img src={`http://localhost:5005${m.attachment.url}`} alt={m.attachment.fileName} />
+                          <img src={`https://natter-backend-0p2e.onrender.com${m.attachment.url}`} alt={m.attachment.fileName} />
                         ) : m.attachment.fileType.startsWith("video/") ? (
-                          <video controls src={`http://localhost:5005${m.attachment.url}`} />
+                          <video controls src={`https://natter-backend-0p2e.onrender.com${m.attachment.url}`} />
                         ) : (
-                          <a href={`http://localhost:5005${m.attachment.url}`} target="_blank" rel="noreferrer" className="file-attachment">
+                          <a href={`https://natter-backend-0p2e.onrender.com${m.attachment.url}`} target="_blank" rel="noreferrer" className="file-attachment">
                             <span className="file-icon">📄</span>
                             <span>{m.attachment.fileName}</span>
                           </a>
