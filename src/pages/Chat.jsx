@@ -35,14 +35,57 @@ export default function Chat() {
 
   const socket = getSocket();
 
-  // 👥 Load users ONCE
+  // 👥 Load contacts with history
   useEffect(() => {
-    const fetchUsers = async () => {
-      const res = await API.get("/users");
-      setUsers(res.data.filter((u) => u._id !== myId));
+    const fetchContacts = async () => {
+      try {
+        const res = await API.get("/users/contacts", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUsers(res.data);
+      } catch (err) {
+        console.error("Error fetching contacts", err);
+      }
     };
-    fetchUsers();
+    fetchContacts();
   }, []);
+
+  // 🔍 Global Search Logic
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [localQuery, setLocalQuery] = useState("");
+
+  const handleGlobalSearch = async (q) => {
+    setSearchQuery(q);
+    if (q.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      const res = await API.get(`/users/search?q=${q}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSearchResults(res.data);
+    } catch (err) {
+      console.error("Search error", err);
+    }
+  };
+
+  const selectSearchResult = (u) => {
+    // Add to local list if not there and select
+    if (!users.find(user => user._id === u._id)) {
+      setUsers([u, ...users]);
+    }
+    setSelectedUser(u);
+    setIsSearching(false);
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
+  const filteredUsers = users.filter(u => 
+    u.username.toLowerCase().includes(localQuery.toLowerCase())
+  );
 
   // Mouse Tracking State
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -199,18 +242,49 @@ export default function Chat() {
       />
       
       <div className={`sidebar ${mobileView === "chat" ? "mobile-hidden" : ""}`}>
-        <div className="brand">⚡ Natter</div>
+        <div className="sidebar-header">
+          <div className="brand">⚡ Natter</div>
+          <button className="add-btn" onClick={() => setIsSearching(!isSearching)}>
+            {isSearching ? "✕" : "+"}
+          </button>
+        </div>
 
-        {users.map((u, index) => (
-          <div
-            key={u._id}
-            className={`user ${selectedUser?._id === u._id ? "active" : ""}`}
-            style={{ animationDelay: `${index * 0.05}s`, animation: 'fadeIn 0.4s ease forwards' }}
-            onClick={() => setSelectedUser(u)}
-          >
-            {u.username}
-          </div>
-        ))}
+        <div className="search-container">
+          <input 
+            type="text" 
+            placeholder={isSearching ? "Find new users..." : "Search chats..."}
+            value={isSearching ? searchQuery : localQuery}
+            onChange={(e) => isSearching ? handleGlobalSearch(e.target.value) : setLocalQuery(e.target.value)}
+            className="sidebar-search"
+          />
+        </div>
+
+        <div className="user-list">
+          {isSearching ? (
+            <div className="search-results">
+              {searchResults.length > 0 ? (
+                searchResults.map((u) => (
+                  <div key={u._id} className="user result" onClick={() => selectSearchResult(u)}>
+                    {u.username}
+                  </div>
+                ))
+              ) : (
+                <div className="empty-msg">{searchQuery.length < 2 ? "Type to search..." : "No users found"}</div>
+              )}
+            </div>
+          ) : (
+            filteredUsers.map((u, index) => (
+              <div
+                key={u._id}
+                className={`user ${selectedUser?._id === u._id ? "active" : ""}`}
+                style={{ animationDelay: `${index * 0.05}s`, animation: 'fadeIn 0.4s ease forwards' }}
+                onClick={() => setSelectedUser(u)}
+              >
+                {u.username}
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       <div className={`chat ${!selectedUser || mobileView === "list" ? "mobile-hidden" : ""}`}>
